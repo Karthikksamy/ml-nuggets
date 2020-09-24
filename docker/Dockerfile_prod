@@ -1,0 +1,129 @@
+FROM python:3.8-slim-buster
+
+MAINTAINER Karthik Karuppasamy <karthik.k.samy@gmail.com>
+
+#STEP 1: Because conda init do not work with the docker default shell
+#--login helps source profile and bashrc properly
+SHELL ["/bin/bash", "--login", "-c" ]
+
+
+#STEP 2: https://snyk.io/blog/10-docker-image-security-best-practices/
+# Create a non-root user
+ARG username=docker-user
+ARG uid=1000
+ARG gid=100
+ENV USER $username
+ENV UID $uid
+ENV GID $gid
+ENV HOME /home/$USER
+
+
+RUN adduser --disabled-password \
+    --gecos "Non-root user" \
+    --uid $UID \
+    --gid $GID \
+    --home $HOME \
+    --force-badname \  
+    $USER 
+#--force-badname can be averted, if a proper username is used
+
+
+#STEP 3: Create a copy of installation environments
+
+COPY docker/install-packages.sh docker/environment.yml docker/requirements.txt /tmp/
+RUN chown $UID:$GID /tmp/install-packages.sh && \
+    /tmp/install-packages.sh && \
+    rm /tmp/install-packages.sh
+
+RUN chown $UID:$GID /tmp/environment.yml /tmp/requirements.txt
+
+#COPY postBuild /usr/local/bin/postBuild.sh
+#RUN chown $UID:$GID /usr/local/bin/postBuild.sh && \
+#    chmod u+x /usr/local/bin/postBuild.sh
+
+COPY docker/entrypoint.sh /usr/local/bin/
+RUN chown $UID:$GID /usr/local/bin/entrypoint.sh && \
+    chmod u+x /usr/local/bin/entrypoint.sh
+
+#switching over to non-root user and installing
+USER $USER
+
+#STEP 4: Install miniconda
+
+#ENV MINICONDA_VERSION py38_4.8.3
+ENV MINICONDA_VERSION latest
+ENV CONDA_DIR $HOME/conda
+
+
+RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-$MINICONDA_VERSION-Linux-x86_64.sh -O ~/miniconda.sh && \
+    /bin/bash ~/miniconda.sh -b -p $CONDA_DIR && \
+    rm ~/miniconda.sh && \
+    $CONDA_DIR/bin/conda clean -tipsy 
+
+    #&& \
+    #ln -s $CONDA_DIR/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
+    #echo ". $CONDA_DIR/etc/profile.d/conda.sh" >> ~/.bashrc 
+
+
+#STEP 5: Make conda installation accessible through path settings
+
+#make conda commands available at shell
+ENV PATH=$CONDA_DIR/bin:$PATH
+# make conda activate command available from /bin/bash --login shells
+RUN echo ". $CONDA_DIR/etc/profile.d/conda.sh" >> ~/.profile
+# make conda activate command available from /bin/bash --interative shells
+RUN conda init bash
+
+# STEP 6: create a project directory inside user home
+ENV PROJECT_DIR $HOME/app
+RUN mkdir $PROJECT_DIR
+WORKDIR $PROJECT_DIR
+
+
+# STEP 7: build the conda environment
+#ENV ENV_PREFIX $PWD/env
+#RUN conda env create --prefix $ENV_PREFIX --file /tmp/environment.yml --force && \
+
+ENV ENV_PREFIX 6.86x
+#RUN conda update --name base --channel defaults conda && \
+RUN conda env create --file /tmp/environment.yml --force && \
+    echo "conda activate 6.86x" >> ~/.bashrc && \
+    conda clean --all --yes
+
+## run the postBuild script to install any JupyterLab extensions
+#RUN conda activate $ENV_PREFIX && \
+#    /usr/local/bin/postBuild.sh && \
+#    conda deactivate
+
+
+# STEP 8: Ensure the environment is activated at runtime
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh" ]
+
+# STEP 9: default command will launch JupyterLab server for development
+CMD [ "jupyter", "lab", "--no-browser", "--ip", "0.0.0.0" ]
+
+
+######################
+
+## Test if the environment is activated:
+#RUN echo "To test environment, Make sure flask is installed:"
+#RUN python -c "import torch"
+
+#CMD ["/bin/bash"]
+
+#FOR REFERENCE
+#docker-compose build
+#docker-compose up
+#docker-compose run --entrypoint "/bin/bash" mit686x-env 
+#docker-compose down
+
+
+#docker build --rm -f Docker/Dockerfile_prod -t mit686x-env ..
+#docker build -f Docker/Dockerfile -t mit686x-py38 ..
+
+#to run a single script
+#docker run -it --rm --name my-env -v "$PWD":/usr/src/app -w /usr/src/app mit686x-py38-condains 
+#docker exec -it {CONTAINER_ID} /bin/bash
+
+#for reference:
+#https://www.docker.com/blog/containerizing-test-tooling-creating-your-dockerfile-and-makefile/

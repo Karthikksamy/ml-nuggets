@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+  mit686x-env:
+    build:
+      args:
+#$ declare -p PID
+#$ declare -x PID
+#$ declare -x GID
+        - username=${USER}
+        - uid=${UID}
+        - gid=${GID}
+      context: ../
+      dockerfile: docker/Dockerfile_prod
+
+    ports:
+      - "8888:8888"
+    volumes:
+      - ${PWD}/..:/home/${USER}/app 
+#      - ../bin:/home/${USER}/app/bin
+#      - ../data:/home/${USER}/app/data
+#      - ../doc:/home/${USER}/app/doc
+#      - ../notebooks:/home/${USER}/app/notebooks
+#      - ../results:/home/${USER}/app/results
+#      - ../src:/home/${USER}/app/src
+    init: true
+    stdin_open: true
+    tty: true

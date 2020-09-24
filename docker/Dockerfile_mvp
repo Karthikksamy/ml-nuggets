@@ -1,0 +1,54 @@
+FROM python:3.8-slim-buster
+
+#  $ docker build --rm -f Docker/Dockerfile_test -t mit686x-py38-condains .
+#  $ docker build . -t continuumio/miniconda3:latest -t continuumio/miniconda3:4.5.11
+#  $ docker run --rm -it continuumio/miniconda3:latest /bin/bash
+#  $ docker push continuumio/miniconda3:latest
+#  $ docker push continuumio/miniconda3:4.5.11
+
+ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
+ENV PATH /opt/conda/bin:$PATH
+
+RUN apt-get update --fix-missing && \
+    apt-get install -y wget bzip2 ca-certificates curl git && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY docker/install-packages.sh docker/environment.yml docker/requirements.txt /tmp/
+
+#ENV MINICONDA_VERSION py38_4.8.3
+
+ENV MINICONDA_VERSION latest
+
+RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-$MINICONDA_VERSION-Linux-x86_64.sh -O ~/miniconda.sh && \
+    /bin/bash ~/miniconda.sh -b -p /opt/conda && \
+    rm ~/miniconda.sh && \
+    /opt/conda/bin/conda clean -tipsy && \
+    ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
+    echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc 
+     
+#    echo "conda activate base" >> ~/.bashrc
+
+#  build the conda environment
+#RUN conda update --name base --channel defaults conda && \
+RUN conda env create --file /tmp/environment.yml --force && \
+    echo "conda activate 6.86x" >> ~/.bashrc && \
+    conda clean --all --yes
+#    conda build purge-all
+#   Use 'conda build purge-all' to remove source cache files.
+
+ENV TINI_VERSION v0.16.1
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /usr/bin/tini
+RUN chmod +x /usr/bin/tini
+
+#Why Tini
+#https://github.com/krallin/tini/issues/8
+ENTRYPOINT [ "/usr/bin/tini", "--" ]
+CMD [ "/bin/bash" ]
+
+######################
+
+#FOR REFERENCE
+
+#docker build --rm -f Docker/Dockerfile_mvp -t mit686x-mvp ..
+#docker build -f Docker/Dockerfile -t mit686x-py38 ..

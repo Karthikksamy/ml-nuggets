@@ -1,0 +1,12 @@
+name: 6.86x
+channels:
+  - conda-forge
+dependencies:
+  - flask
+  - pytorch-cpu
+  - jupyterlab
+  - numpy
+  - matplotlib
+  - scipy
+  - tqdm
+  - scikit-learn
